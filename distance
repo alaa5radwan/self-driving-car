@@ -1,0 +1,139 @@
+import cv2
+import numpy as np
+from ultralytics import YOLO
+
+# Load the trained YOLOv8.2 model
+model = YOLO("yolov8n.pt")  # Replace with your trained model path
+names = model.model.names
+
+# Known parameters
+focal_length = 2571  # Focal length in pixels (calibrate this for your camera)
+known_width = 2.0  # Width of the object in the real world (e.g., 2 meters for a car)
+object_widths = {
+    0: 0.5,  # person
+    1: 1.8,  # bicycle
+    2: 2.0,  # car
+    3: 0.8,  # motorcycle
+    4: 35.0,  # airplane
+    5: 2.5,  # bus
+    6: 3.0,  # train
+    7: 2.5,  # truck
+    8: 2.0,  # boat
+    9: 0.3,  # traffic light
+    10: 0.4,  # fire hydrant
+    11: 0.6,  # stop sign
+    12: 0.2,  # parking meter
+    13: 1.5,  # bench
+    14: 0.3,  # bird
+    15: 0.4,  # cat
+    16: 0.5,  # dog
+    17: 1.5,  # horse
+    18: 1.2,  # sheep
+    19: 1.8,  # cow
+    20: 2.5,  # elephant
+    21: 1.5,  # bear
+    22: 1.3,  # zebra
+    23: 1.5,  # giraffe
+    24: 0.3,  # backpack
+    25: 1.0,  # umbrella
+    26: 0.5,  # handbag
+    27: 0.2,  # tie
+    28: 0.5,  # suitcase
+    29: 0.3,  # frisbee
+    30: 0.2,  # skis
+    31: 0.3,  # snowboard
+    32: 0.2,  # sports ball
+    33: 1.0,  # kite
+    34: 0.1,  # baseball bat
+    35: 0.2,  # baseball glove
+    36: 0.3,  # skateboard
+    37: 0.6,  # surfboard
+    38: 0.3,  # tennis racket
+    39: 0.1,  # bottle
+    40: 0.1,  # wine glass
+    41: 0.1,  # cup
+    42: 0.02,  # fork
+    43: 0.02,  # knife
+    44: 0.02,  # spoon
+    45: 0.3,  # bowl
+    46: 0.2,  # banana
+    47: 0.1,  # apple
+    48: 0.2,  # sandwich
+    49: 0.1,  # orange
+    50: 0.1,  # broccoli
+    51: 0.1,  # carrot
+    52: 0.2,  # hot dog
+    53: 0.3,  # pizza
+    54: 0.1,  # donut
+    55: 0.3,  # cake
+    56: 0.5,  # chair
+    57: 2.0,  # couch
+    58: 0.3,  # potted plant
+    59: 1.5,  # bed
+    60: 1.0,  # dining table
+    61: 0.5,  # toilet
+    62: 1.0,  # tv
+    63: 0.3,  # laptop
+    64: 0.1,  # mouse
+    65: 0.1,  # remote
+    66: 0.4,  # keyboard
+    67: 0.1,  # cell phone
+    68: 0.5,  # microwave
+    69: 0.5,  # oven
+    70: 0.3,  # toaster
+    71: 0.5,  # sink
+    72: 0.6,  # refrigerator
+    73: 0.2,  # book
+    74: 0.2,  # clock
+    75: 0.2,  # vase
+    76: 0.1,  # scissors
+    77: 0.3,  # teddy bear
+    78: 0.2,  # hair drier
+    79: 0.1,  # toothbrush
+}
+
+
+def calculate_distance(known_width, focal_length, per_width):
+    # Compute and return the distance from the camera to the object
+    return (known_width * focal_length) / per_width
+
+def process_frame(frame):
+    # Perform object detection
+    results = model(frame)
+
+    # Loop through the detected objects
+    for detection in results[0].boxes:  # Adjust based on your model's output structure
+        bbox = detection.xyxy[0].cpu().numpy()
+        x1, y1, x2, y2 = bbox[:4]
+        conf = detection.conf.cpu().numpy()
+        cls = detection.cls.cpu().numpy()
+        
+        obj_width = x2 - x1
+        distance = calculate_distance(object_widths[int(cls)], focal_length, obj_width)
+        
+        # Draw bounding box and distance on the frame
+        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+        cv2.putText(frame, f"{names[int(cls)]}: {distance:.2f}m", (int(x1), int(y1) - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    
+    return frame
+
+# Capture video from the car's camera
+cap = cv2.VideoCapture("tra0.mp4")
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+    
+    # Process the frame
+    frame = process_frame(frame)
+    
+    # Display the frame
+    cv2.imshow("Frame", frame)
+    
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
